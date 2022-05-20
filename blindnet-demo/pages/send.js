@@ -27,7 +27,6 @@ export default function send() {
 
         // Encrypt data
         const { encryptedText } = await blindnet.encrypt({data: text})
-
     }
 
     return (
