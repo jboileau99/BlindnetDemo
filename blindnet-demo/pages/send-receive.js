@@ -2,68 +2,89 @@ import { useState, useEffect } from 'react'
 import { Blindnet } from '@blindnet/sdk-javascript'
 import { createTempUserToken } from '@blindnet/token-generator'
 
-export default function send() {
+// Blindnet app info
+const appId = '088cb9cc-50b1-450c-901d-2c59a8819d6c'
+const appKey = 'GGGO67rP8dbKV8Xo+d60tpQFdlrdyuWtV6EmARrjYaSpwDCM2ZvnaN6HRlrZI8WX+cNT+I8WStY4PN4Mx0LyLg=='
+const endpoint = 'https://test.blindnet.io'
 
-    const [mode, setMode] = useState(0) // 0 == text, 1 == file
+function Send() {
+
+    const [dataMode, setDataMode] = useState(0)     // 0 == text, 1 == file
     const [recipient, setRecipient] = useState('')
-    const [textData, setTextData] = useState('')
-    const [fileData, setFileData] = useState('')
-
-    // Blindnet app info
-    const appId = '088cb9cc-50b1-450c-901d-2c59a8819d6c'
-    const appKey = 'GGGO67rP8dbKV8Xo+d60tpQFdlrdyuWtV6EmARrjYaSpwDCM2ZvnaN6HRlrZI8WX+cNT+I8WStY4PN4Mx0LyLg=='
-    const endpoint = 'https://test.blindnet.io'
+    const [data, setData] = useState('')
+    const [tempToken, setTempToken] = useState()
+    // whatever
 
     // Should expand this to send to multiple users
-    async function sendText(recipientId, text) {
+    async function sendData() {
 
         // Get token for sending to recipient
-        const token = await createTempUserToken([recipientId], appId, appKey)
-        const blindnet = Blindnet.init(token, endpoint)
-        console.log(`RecipientId: ${recipientId}, text: ${text}, token: ${token}`)
+        const token = await createTempUserToken([recipient], appId, appKey)
+        // await setTempToken(token)
+        console.log(`Recipient: ${recipient}, text: ${data}, token: ${tempToken}`)
         console.log(`Blindnet: ${blindnet}`)
         console.log(`Type of blindnet: ${typeof blindnet}`)
+        const blindnet = Blindnet.init(tempToken, endpoint)
 
+        // Encrypt the text or file
+        const { encryptedText } = await blindnet.encrypt(data)
 
-        // Encrypt data
-        const { encryptedText } = await blindnet.encrypt({data: text})
     }
 
     return (
-        <div className="container">
-            <h1 className="title">Send a message securely with Blindnet!</h1>
 
+        <div>
+            {/* Recipient Selection */}
             <p className="description">Who would you like to send to?</p>
-
             <input onInput={e => setRecipient(e.target.value)}/>
 
+            {/* Text or File Mode */}
             <p className="description">What type of data would you like to send?</p>
-
             <div className="grid">
-                <a className="card" onClick={() => setMode(0)}>
+                <a className="card" onClick={() => setDataMode(0)}>
                     <h3>Text</h3>
                 </a>
-                <a className="card" onClick={() => setMode(1)}>
+                <a className="card" onClick={() => setDataMode(1)}>
                     <h3>File</h3>
                 </a>
             </div>
 
-            {mode == 0 ?
-                (
-                    <div>
-                        <input onInput={e => setTextData(e.target.value)}/>
-                        <button onClick={() => sendText(recipient, textData)}>Send</button>
-                    </div>
-                ) : null
-            }
+            <input type={dataMode == 0 ? 'text' : 'file'} onInput={e => setData(e.target.value)}/>
 
-            { mode == 1 ?
-                (
-                    <div>
-                        <input type='file' onInput={e => setFileData(e.target.files[0])}/>
-                    </div>
-                ) : null
-            }
+            <div className="grid">
+                <a className="card" onClick={ sendData }>Send</a>
+            </div>
+        </div>
+    )
+
+}
+
+export default function SendReceive() {
+
+    const [sendReceiveMode, setSendReceiveMode] = useState(0)   // 0 == send, 1 == receive
+
+    return (
+        <div className="container">
+            <h1 className="title">Send data securely with Blindnet!</h1>
+
+            {/* Send or Receive Mode */}
+            <p className="description">Do you want to send or receive data?</p>
+            <div className="grid">
+                <a className="card" onClick={() => setSendReceiveMode(0)}>
+                    <h3>Send</h3>
+                </a>
+                <a className="card" onClick={() => setSendReceiveMode(1)}>
+                    <h3>Receive</h3>
+                </a>
+            </div>
+
+            {sendReceiveMode == 0 ? (
+
+                <Send></Send>
+
+            ) : null }
+
+
 
         <style jsx>{`
             .container {
@@ -195,6 +216,21 @@ export default function send() {
               }
             }
           `}</style>
+
+            <style jsx global>{`
+                html,
+                body {
+                  padding: 0;
+                  margin: 0;
+                  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto,
+                    Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue,
+                    sans-serif;
+                }
+        
+                * {
+                  box-sizing: border-box;
+                }
+      `   }</style>
         </div>
     )
 
