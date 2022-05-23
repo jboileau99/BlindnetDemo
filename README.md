@@ -1,7 +1,7 @@
 # BlindnetDemo
 Simple web app demonstrating the features of the Blindnet SDK
 
-Uses the (https://nextjs.org/)[Next.js] framework.
+Uses the [Next.js](https://nextjs.org/) framework.
 
 ### Running Instructions:
 
