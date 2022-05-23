@@ -1,6 +1,8 @@
 # BlindnetDemo
 Simple web app demonstrating the features of the Blindnet SDK
 
+Uses the (https://nextjs.org/)[Next.js] framework.
+
 ### Running Instructions:
 
 1. `cd blindnet-demo`
