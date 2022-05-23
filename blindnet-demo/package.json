@@ -1,0 +1,16 @@
+{
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@blindnet/sdk-javascript": "^0.3.0",
+    "@blindnet/sdk-node": "^0.0.2",
+    "@blindnet/token-generator": "^0.0.3",
+    "next": "^12.1.6",
+    "react": "17.0.2",
+    "react-dom": "17.0.2"
+  }
+}
