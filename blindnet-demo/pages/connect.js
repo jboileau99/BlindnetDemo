@@ -14,10 +14,16 @@ export default function Connect() {
     // NOTE: This is insecure but fine for learning the SDK
     const router = useRouter()
 
-    // Blindnet app info
-    const appId = '088cb9cc-50b1-450c-901d-2c59a8819d6c'
-    const appKey = 'GGGO67rP8dbKV8Xo+d60tpQFdlrdyuWtV6EmARrjYaSpwDCM2ZvnaN6HRlrZI8WX+cNT+I8WStY4PN4Mx0LyLg=='
+    // // Blindnet app info - Justin's app
+    // const appId = '088cb9cc-50b1-450c-901d-2c59a8819d6c'
+    // const appKey = 'GGGO67rP8dbKV8Xo+d60tpQFdlrdyuWtV6EmARrjYaSpwDCM2ZvnaN6HRlrZI8WX+cNT+I8WStY4PN4Mx0LyLg=='
+    // const groupId = 'test-group'
+
+    // Blindnet app info - Test App
+    const appId = '3544e7cd-64a9-41b7-88dc-397bfdaeeaf3'
+    const appKey = 'zB5IiU0xzkVdsH4NMXxrF90ZISL5kJnTHlt7h/Wbi/qVhch7Fw8J5AQ5j2PazaG5q114uApZRH4X1/kTKVx0Cw=='
     const groupId = 'test-group'
+    const endpoint = 'https://test.blindnet.io'
 
     async function getBlindnetToken(user) {
         console.log("In async get token function!")
