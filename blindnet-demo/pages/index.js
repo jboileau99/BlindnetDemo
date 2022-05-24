@@ -49,7 +49,6 @@ export default function Home() {
 
     // Handle save or view case here
     saveAs(data, metadata.name)
-
     this.setState({ ...this.state, file: undefined, formState: FILE_DECRYPTED })
 
   }
