@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { Blindnet } from '@blindnet/sdk-javascript'
 import { createTempUserToken, createUserToken } from '@blindnet/token-generator'
+import { error as blindnetError} from '@blindnet/sdk-javascript'
+import clientPromise from "../lib/mongodb";
 
 // Blindnet app info - Test App
 const appId = '3544e7cd-64a9-41b7-88dc-397bfdaeeaf3'
@@ -10,13 +12,23 @@ const appKey = 'zB5IiU0xzkVdsH4NMXxrF90ZISL5kJnTHlt7h/Wbi/qVhch7Fw8J5AQ5j2PazaG5
 const endpoint = 'https://test.blindnet.io'
 const groupId = 'test-group'
 
+// App states
+const AppStates = {
+  LOGIN: 0,
+  SEND: 1,
+  RECEIVE: 2,
+}
+
 export default function Home() {
 
+  // Current state
+  const [appState, setAppState] = useState(AppStates.LOGIN)
+
   // Sender/Recipient Variables
-  const [senderId, setSenderId]
-  const [senderPwd, setSenderPwd]
-  const [recipientId, setRecipientId]
-  const [recipientPwd, setRecipientPwd]
+  const [userId, setUserId] = useState('')
+  const [userPwd, setUserPwd] = useState('')
+  const [recipientId, setRecipientId] = useState('')
+  const [recipientPwd, setRecipientPwd] = useState('')  // Not needed?
 
   // Data variables
   const [dataMode, setDataMode] = useState(0)     // 0 == text, 1 == file
@@ -25,23 +37,18 @@ export default function Home() {
   async function encryptData() {
 
     // Get token for sending to recipient
-    console.log(`recipient: ${recipient}, appId: ${appId}, appKey: ${appKey}`)
-    const token = await createTempUserToken(groupId, appId, appKey)
+    console.log(`recipient: ${recipientId}, appId: ${appId}, appKey: ${appKey}`)
+    const tempToken = await createTempUserToken(groupId, appId, appKey)
 
     // Get a blindnet instance
-    console.log(`token: ${token}\n endpoint: ${endpoint}\ndata: ${data}`)
-    const blindnet = Blindnet.init(token, endpoint)
+    console.log(`tempToken: ${tempToken}\n endpoint: ${endpoint}\ndata: ${data}`)
+    const tempBlindnet = Blindnet.init(tempToken, endpoint)
 
-    // Encrypt the text or file
-    const { encryptedText } = await blindnet.capture(data).forUser(recipient).encrypt()
-    console.log(`Encrypting - Data: ${data} Recipient: ${recipient}`)
-    console.log(`encryptedText: ${encryptedText.value}`)
-    console.log(`encryptedText type: ${typeof encryptedText}`)
-
+    // Encrypt the text or file and return promise
+    return tempBlindnet.capture(data).forUser('Justin').encrypt()
   }
 
   async function decryptData() {
-
 
     // Have to create/rename variables to have both dataToEncrypt (send) and dataToDecrypt (receive)
     const encryptedBytes = await dataToDecrypt.arrayBuffer()
@@ -55,11 +62,31 @@ export default function Home() {
 
   async function send() {
 
+    // Encrypt message
+    encryptData()
+      .then(async encryptedText => {
+
+        console.log(encryptedText)
+
+        await saveMessage(encryptedText)
+
+      }, e => {})
 
 
   }
 
   async function recieve() {
+
+    // Get message(s?) from DB
+    // const client = await clientPromise
+    // const database = client.db('')
+    // const messages = database.collection('messages')
+    //
+    // const query = { to: '' };
+    // const message = await messages.findOne(query);
+    // console.log(message);
+
+    // Decrypt and return
 
   }
 
@@ -70,14 +97,98 @@ export default function Home() {
     const blindnet = Blindnet.init(token, endpoint)
 
     // Connect user to blindnet
-    const { appSecret, blindnetSecret } = await Blindnet.deriveSecrets(password)
-    await blindnet.connect(blindnetSecret)
+    const { blindnetSecret } = await Blindnet.deriveSecrets(userPwd)
+    blindnet.connect(blindnetSecret)
+        .then(() => setAppState(AppStates.SEND), async e => {console.log("Error")})
+
   }
 
-  return (
 
+
+  return (
+      <div>
+        <h1>Welcome to Blindnet!</h1>
+
+        {/* Login/Create Account Block */}
+        { appState === AppStates.LOGIN ? (
+          <div>
+            <p className="prompt">Please login or create an account</p>
+            <p className="description">Username</p>
+            <input type="text" onInput={event => setUserId(event.target.value)}/>
+            <p className="description">Password</p>
+            <input type="password" onInput={event => setUserPwd(event.target.value)}/>
+            <button onClick={login}>Login</button>
+          </div>) : null
+        }
+
+        {/* Send Block */}
+        { appState === AppStates.SEND ? (
+          <div>
+            <p className="prompt">Who would you like to send to?</p>
+            <input type="text" onInput={event => setRecipientId(event.target.value)}/>
+            <p className="prompt">Enter your message below</p>
+            <input type="text" onInput={event => setData(event.target.value)}/>
+            <button onClick={send}>Send</button>
+          </div>) : null
+        }
+
+        {/* Receive Block */}
+        { appState === AppStates.RECEIVE ? (
+          <div>
+            <p className="prompt">Your Messages:</p>
+          </div>) : null
+        }
+
+
+      </div>
   )
 
+}
+
+export async function getServerSideProps(context) {
+  try {
+    const client = await clientPromise
+    const db = client.db('')
+    const messages = database.collection('messages')
+
+    // Insert message
+    const doc = { to: recipientId, from: userId, body: data }
+    const result = await messages.insertOne(doc)
+    console.log(`Inserted document with _id: ${result.insertId}`)
+
+    // Can do the above way
+    // But must use an api endpoint for sending the messages, see below
+    // https://www.section.io/engineering-education/build-nextjs-with-mongodb-and-deploy-on-vercel/
+
+    // Connect to db and get collection reference
+    // await client.connect()
+    // const client = await clientPromise
+    // const database = client.db('')
+    // const messages = database.collection('messages')
+    //
+    // // Insert message
+    // const doc = { to: recipientId, from: userId, body: data }
+    // const result = await messages.insertOne(doc)
+    // console.log(`Inserted document with _id: ${result.insertId}`)
+
+    // `await clientPromise` will use the default database passed in the MONGODB_URI
+    // However you can use another database (e.g. myDatabase) by replacing the `await clientPromise` with the following code:
+    //
+    // `const client = await clientPromise`
+    // `const db = client.db("myDatabase")`
+    //
+    // Then you can execute queries against your database like so:
+    // db.find({}) or any of the MongoDB Node Driver commands
+
+    return {
+      props: { isConnected: true },
+    }
+  } catch (e) {
+    console.error(e)
+    return {
+      props: { isConnected: false },
+    }
+  }
 }
 
 // export default function Home() {
