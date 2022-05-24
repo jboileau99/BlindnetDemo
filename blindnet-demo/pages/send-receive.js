@@ -5,12 +5,14 @@ import { createTempUserToken } from '@blindnet/token-generator'
 // Blindnet app info - Justin's App
 // const appId = '088cb9cc-50b1-450c-901d-2c59a8819d6c'
 // const appKey = 'GGGO67rP8dbKV8Xo+d60tpQFdlrdyuWtV6EmARrjYaSpwDCM2ZvnaN6HRlrZI8WX+cNT+I8WStY4PN4Mx0LyLg=='
+// const groupId = 'test-group'
 // const endpoint = 'https://test.blindnet.io'
 
 // Blindnet app info - Test App
 const appId = '3544e7cd-64a9-41b7-88dc-397bfdaeeaf3'
 const appKey = 'zB5IiU0xzkVdsH4NMXxrF90ZISL5kJnTHlt7h/Wbi/qVhch7Fw8J5AQ5j2PazaG5q114uApZRH4X1/kTKVx0Cw=='
 const endpoint = 'https://test.blindnet.io'
+const groupId = 'test-group'
 
 
 function Send() {
@@ -24,18 +26,37 @@ function Send() {
     async function sendData() {
 
         // Get token for sending to recipient
-        const token = await createTempUserToken([recipient], appId, appKey)
+        console.log(`recipient: ${recipient}, appId: ${appId}, appKey: ${appKey}`)
+        const token = await createTempUserToken(groupId, appId, appKey)
 
         // Get a blindnet instance
-        console.log(`Recipient: ${recipient}, text: ${data}, token: ${token}`)
-        const blindnet = Blindnet.init(tempToken, endpoint)
+        console.log(`token: ${token}\n endpoint: ${endpoint}\ndata: ${data}`)
+        const blindnet = Blindnet.init(token, endpoint)
 
         // Debuging why we get the blindnet.encrypt is not a function error
-        console.log(`Methods of blindnet object: ${Object.getOwnPropertyNames(blindnet)}`)
-        console.log(`Methods of blindnet object: ${Object.getOwnPropertyNames(Blindnet)}`)
+        console.log(`Encrypting - Data: ${data} Recipient: ${recipient}`)
 
         // Encrypt the text or file
-        const { encryptedText } = await blindnet.encrypt(data)
+        // const { encryptedText } = await blindnet.capture(data).withMetadata({}).forUser(recipient).encrypt()
+        const { encryptedText } = await blindnet.capture(data).forUser(recipient).encrypt()
+        // const { encryptedData } = await blindnet.encrypt(data)
+        console.log(`encryptedText: ${encryptedText.value}`)
+        console.log(`encryptedText type: ${typeof encryptedText}`)
+
+        // const fileToEncrypt = "test"
+        //
+        // // const { fileToEncrypt } = this.state
+        //
+        // const token = await createTempUserToken(groupId, appId, appKey)
+        // const blindnet = Blindnet.init(token, endpoint)
+        //
+        // const { encryptedData } = await blindnet.capture(data).forUser(recipient).encrypt()
+        //
+        // // saveAs(new Blob([encryptedData]), `${fileToEncrypt.name}-encrypted`)
+        //
+        // // this.setState({ ...this.state, formState: FILE_ENCRYPTED })
+        //
+        // console.log(`encryptedData: ${encryptedData}`)
     }
 
     return (
