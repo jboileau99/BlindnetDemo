@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Blindnet } from '@blindnet/sdk-javascript'
 import { createTempUserToken, createUserToken } from '@blindnet/token-generator'
 import { error as blindnetError} from '@blindnet/sdk-javascript'
-import clientPromise from "../lib/mongodb";
+// import clientPromise from "../lib/mongodb";
 
 // Blindnet app info - Test App
 const appId = '3544e7cd-64a9-41b7-88dc-397bfdaeeaf3'
@@ -21,44 +21,45 @@ const AppStates = {
 
 export default function Home() {
 
-  // Current state
-  const [appState, setAppState] = useState(AppStates.LOGIN)
+    // Current state
+    const [appState, setAppState] = useState(AppStates.LOGIN)
 
-  // Sender/Recipient Variables
-  const [userId, setUserId] = useState('')
-  const [userPwd, setUserPwd] = useState('')
-  const [recipientId, setRecipientId] = useState('')
-  const [recipientPwd, setRecipientPwd] = useState('')  // Not needed?
+    // Sender/Recipient Variables
+    const [userId, setUserId] = useState('')
+    const [userPwd, setUserPwd] = useState('')
+    const [loggedInUser, setLoggedInUser] = useState('')
+    const [recipientId, setRecipientId] = useState('')
 
-  // Data variables
-  const [dataMode, setDataMode] = useState(0)     // 0 == text, 1 == file
-  const [data, setData] = useState('')
+    // Data variables
+    const [dataMode, setDataMode] = useState(0)     // 0 == text, 1 == file
+    const [data, setData] = useState('')
+    const [dataToDecrypt, setDataToDecrypt] = useState('')
 
-  async function encryptData() {
+    async function encryptData() {
 
-    // Get token for sending to recipient
-    console.log(`recipient: ${recipientId}, appId: ${appId}, appKey: ${appKey}`)
-    const tempToken = await createTempUserToken(groupId, appId, appKey)
+        // Get token for sending to recipient
+        console.log(`recipient: ${recipientId}, appId: ${appId}, appKey: ${appKey}`)
+        const tempToken = await createTempUserToken(groupId, appId, appKey)
 
-    // Get a blindnet instance
-    console.log(`tempToken: ${tempToken}\n endpoint: ${endpoint}\ndata: ${data}`)
-    const tempBlindnet = Blindnet.init(tempToken, endpoint)
+        // Get a blindnet instance
+        console.log(`tempToken: ${tempToken}\n endpoint: ${endpoint}\ndata: ${data}`)
+        const tempBlindnet = Blindnet.init(tempToken, endpoint)
 
-    // Encrypt the text or file and return promise
-    return tempBlindnet.capture(data).forUser('Justin').encrypt()
-  }
+        // Encrypt the text or file and return promise
+        return tempBlindnet.capture(data).forUser('Justin').encrypt()
+    }
 
-  async function decryptData() {
+    async function decryptData() {
 
-    // Have to create/rename variables to have both dataToEncrypt (send) and dataToDecrypt (receive)
-    const encryptedBytes = await dataToDecrypt.arrayBuffer()
-    const { data, metadata } = await blindnet.decrypt(encryptedFileBytes)
+        // Have to create/rename variables to have both dataToEncrypt (send) and dataToDecrypt (receive)
+        const encryptedBytes = await dataToDecrypt.arrayBuffer()
+        const { data, metadata } = await blindnet.decrypt(encryptedFileBytes)
 
-    // Handle save or view case here
-    saveAs(data, metadata.name)
-    this.setState({ ...this.state, file: undefined, formState: FILE_DECRYPTED })
+        // Handle save or view case here
+        saveAs(data, metadata.name)
+        this.setState({ ...this.state, file: undefined, formState: FILE_DECRYPTED })
 
-  }
+    }
 
   async function send() {
 
@@ -68,23 +69,46 @@ export default function Home() {
 
         console.log(encryptedText)
 
-        await saveMessage(encryptedText)
+        // Message structure
+        let message = {
+          to: recipientId,
+          from: loggedInUser,
+          body: String.fromCharCode.apply(null, new Uint8Array(encryptedText.encryptedData))
+        }
+
+        // Send request for server to save the message
+        let response = await fetch('/api/messages', {
+          method: 'POST',
+          body: JSON.stringify(message)
+        })
+        let resp = await response.json()
+
+        if (resp.success) {
+          // Clear fields
+          setUserId('')
+          setData('')
+        } else {
+          // Do some kind of error display on the UI here
+          console.log(`Error sending message: ${resp.message}`)
+        }
 
       }, e => {})
 
 
   }
 
-  async function recieve() {
+  async function receive() {
 
-    // Get message(s?) from DB
-    // const client = await clientPromise
-    // const database = client.db('')
-    // const messages = database.collection('messages')
-    //
-    // const query = { to: '' };
-    // const message = await messages.findOne(query);
-    // console.log(message);
+    try {
+
+        // await fetch('/api/messages' + new URLSearchParams({recipient: loggedInUser}))
+        let response = await fetch('/api/messages')
+        let message = await response.json()
+        console.log(`Got: ${message.message.body}`)
+
+    } catch (e) {
+      console.log(`Error getting messages: ${e.message}`)
+    }
 
     // Decrypt and return
 
@@ -99,7 +123,10 @@ export default function Home() {
     // Connect user to blindnet
     const { blindnetSecret } = await Blindnet.deriveSecrets(userPwd)
     blindnet.connect(blindnetSecret)
-        .then(() => setAppState(AppStates.SEND), async e => {console.log("Error")})
+        .then(() => {
+          setAppState(AppStates.SEND)
+          setLoggedInUser(userId)
+        }, async e => {console.log("Error")})
 
   }
 
@@ -121,6 +148,20 @@ export default function Home() {
           </div>) : null
         }
 
+        {/* Send/Receive Selection Block */}
+        { appState != AppStates.LOGIN ? (
+            <div>
+
+              <button onClick={() => setAppState(AppStates.SEND)}>Send</button>
+              <button onClick={() => {
+                setAppState(AppStates.RECEIVE)
+                receive()
+              }}>Receive</button>
+
+            </div>
+        ): null
+        }
+
         {/* Send Block */}
         { appState === AppStates.SEND ? (
           <div>
@@ -138,58 +179,14 @@ export default function Home() {
             <p className="prompt">Your Messages:</p>
           </div>) : null
         }
-
-
       </div>
   )
 
 }
 
-export async function getServerSideProps(context) {
-  try {
-    const client = await clientPromise
-    const db = client.db('')
-    const messages = database.collection('messages')
-
-    // Insert message
-    const doc = { to: recipientId, from: userId, body: data }
-    const result = await messages.insertOne(doc)
-    console.log(`Inserted document with _id: ${result.insertId}`)
-
-    // Can do the above way
-    // But must use an api endpoint for sending the messages, see below
-    // https://www.section.io/engineering-education/build-nextjs-with-mongodb-and-deploy-on-vercel/
-
-    // Connect to db and get collection reference
-    // await client.connect()
-    // const client = await clientPromise
-    // const database = client.db('')
-    // const messages = database.collection('messages')
-    //
-    // // Insert message
-    // const doc = { to: recipientId, from: userId, body: data }
-    // const result = await messages.insertOne(doc)
-    // console.log(`Inserted document with _id: ${result.insertId}`)
-
-    // `await clientPromise` will use the default database passed in the MONGODB_URI
-    // However you can use another database (e.g. myDatabase) by replacing the `await clientPromise` with the following code:
-    //
-    // `const client = await clientPromise`
-    // `const db = client.db("myDatabase")`
-    //
-    // Then you can execute queries against your database like so:
-    // db.find({}) or any of the MongoDB Node Driver commands
-
-    return {
-      props: { isConnected: true },
-    }
-  } catch (e) {
-    console.error(e)
-    return {
-      props: { isConnected: false },
-    }
-  }
-}
+// export async function getServerSideProps(ctx) {
+//
+// }
 
 // export default function Home() {
 //
