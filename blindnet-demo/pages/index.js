@@ -5,6 +5,7 @@ import { Blindnet } from '@blindnet/sdk-javascript'
 import { createTempUserToken, createUserToken } from '@blindnet/token-generator'
 import { error as blindnetError} from '@blindnet/sdk-javascript'
 // import clientPromise from "../lib/mongodb";
+const bson = require('bson')
 
 // Blindnet app info - Test App
 const appId = '3544e7cd-64a9-41b7-88dc-397bfdaeeaf3'
@@ -29,6 +30,8 @@ export default function Home() {
     const [userPwd, setUserPwd] = useState('')
     const [loggedInUser, setLoggedInUser] = useState('')
     const [recipientId, setRecipientId] = useState('')
+    const [token, setToken] = useState('')
+    const [displayMessages, setDisplayMessages] = useState([])
 
     // Data variables
     const [dataMode, setDataMode] = useState(0)     // 0 == text, 1 == file
@@ -38,81 +41,155 @@ export default function Home() {
     async function encryptData() {
 
         // Get token for sending to recipient
-        console.log(`recipient: ${recipientId}, appId: ${appId}, appKey: ${appKey}`)
+        // console.log(`recipient: ${recipientId}, appId: ${appId}, appKey: ${appKey}`)
         const tempToken = await createTempUserToken(groupId, appId, appKey)
 
         // Get a blindnet instance
-        console.log(`tempToken: ${tempToken}\n endpoint: ${endpoint}\ndata: ${data}`)
+        // console.log(`tempToken: ${tempToken}\n endpoint: ${endpoint}\ndata: ${data}`)
         const tempBlindnet = Blindnet.init(tempToken, endpoint)
 
         // Encrypt the text or file and return promise
-        return tempBlindnet.capture(data).forUser('Justin').encrypt()
+        return tempBlindnet.capture(data).forUser('justin').encrypt()
     }
 
-    async function decryptData() {
+    async function decryptData(encryptedData) {
 
         // Have to create/rename variables to have both dataToEncrypt (send) and dataToDecrypt (receive)
-        const encryptedBytes = await dataToDecrypt.arrayBuffer()
-        const { data, metadata } = await blindnet.decrypt(encryptedFileBytes)
+        // const encryptedBytes = await encryptedData.arrayBuffer()
+        const blindnet = Blindnet.init(token, endpoint)
+        // console.log(encryptedData)
+        // console.log(toArrayBuffer(encryptedData.data))
+        // console.log(`Type of encryptedData: ${typeof toArrayBuffer(encryptedData.data)}`)
+        const { data, metadata } = await blindnet.decrypt(toArrayBuffer(encryptedData.data))
 
         // Handle save or view case here
-        saveAs(data, metadata.name)
-        this.setState({ ...this.state, file: undefined, formState: FILE_DECRYPTED })
+        // saveAs(data, metadata.name)
+        console.log(`Decrypted data: ${data}`)
+
+        return data
 
     }
 
-  async function send() {
+    async function send() {
 
-    // Encrypt message
-    encryptData()
-      .then(async encryptedText => {
+        // Encrypt message
+        encryptData()
+          .then(async encryptedText => {
 
-        console.log(encryptedText)
+            // Message structure
+            let message = {
+                to: recipientId,
+                from: loggedInUser,
+                body: toBuffer(encryptedText.encryptedData)
+            }
 
-        // Message structure
-        let message = {
-          to: recipientId,
-          from: loggedInUser,
-          body: String.fromCharCode.apply(null, new Uint8Array(encryptedText.encryptedData))
-        }
+            // Send request for server to save the message
+            let response = await fetch('/api/messages', {
+              method: 'POST',
+              body: JSON.stringify(message)
+            })
+            let resp = await response.json()
 
-        // Send request for server to save the message
-        let response = await fetch('/api/messages', {
-          method: 'POST',
-          body: JSON.stringify(message)
+            if (resp.success) {
+              // Clear fields
+              setUserId('')
+              setData('')
+            } else {
+              // Do some kind of error display on the UI here
+              console.log(`Error sending message: ${resp.message}`)
+            }
+
+          }, e => {})
+
+
+    }
+
+    async function decryptArray(encryptedData) {
+
+        // NEW
+        console.log(`Showing messages`)
+        encryptedData.message.forEach(message => {
+            console.log(message)
+            decryptData(message.body).then(decryptedBody => {
+                console.log(`Decrypted body: ${decryptedBody}`)
+                message.body = decryptedBody
+            })
+            console.log(message)
         })
-        let resp = await response.json()
 
-        if (resp.success) {
-          // Clear fields
-          setUserId('')
-          setData('')
-        } else {
-          // Do some kind of error display on the UI here
-          console.log(`Error sending message: ${resp.message}`)
-        }
+        return encryptedData
 
-      }, e => {})
+        // let decryptedMessages = encryptedData.map(async message => {
+        //         const decryptedMessage = { ...message }
+        //         // let decryptedBody = await decryptData(message.body)
+        //         // decryptedMessage.body = await decryptedBody
+        //         decryptData(message.body).then(decryptedBody => {
+        //             decryptedMessage.body = decryptedBody
+        //             console.log(decryptedMessage)
+        //         })
+        //         return decryptedMessage
+        //     })
 
-
-  }
-
-  async function receive() {
-
-    try {
-
-        // await fetch('/api/messages' + new URLSearchParams({recipient: loggedInUser}))
-        let response = await fetch('/api/messages')
-        let message = await response.json()
-        console.log(`Got: ${message.message.body}`)
-
-    } catch (e) {
-      console.log(`Error getting messages: ${e.message}`)
+        // OLD
+        // try {
+        //
+        //     // Get array of encrypted messages for this user
+        //     // let response = await fetch('/api/messages' + "?" + new URLSearchParams({recipient: loggedInUser}))
+        //     // let messages = await response.json()
+        //     // let encryptedMessages = messages.message
+        //
+        //     // Decrypt each message
+        //     // let decryptedMessages = []
+        //     // decryptedMessages.forEach(async message => {
+        //     //     const decryptedMessage = { ...message }
+        //     //
+        //     //     decryptData(message.body).then(decryptedBody => {
+        //     //         decryptedMessage.body = decryptedBody
+        //     //         console.log(decryptedMessage)
+        //     //         console.log(decryptedBody)
+        //     //         decryptedMessages.push(decryptedMessage)
+        //     //     })
+        //     // })
+        //     // let decryptedMessages = encryptedMessages.map(async message => {
+        //     //     const decryptedMessage = { ...message }
+        //     //     // let decryptedBody = await decryptData(message.body)
+        //     //     // decryptedMessage.body = await decryptedBody
+        //     //     decryptData(message.body).then(decryptedBody => {
+        //     //         decryptedMessage.body = decryptedBody
+        //     //         console.log(decryptedMessage)
+        //     //     })
+        //     //     return decryptedMessage
+        //     // })
+        //     // console.log(decryptedMessages)
+        //     // console.log(`Decrypted messages: ${decryptedMessages}`)
+        //     // console.log(decryptedMessages)
+        //     // return decryptedMessages
+        //
+        // } catch (e) {
+        //   console.log(`Error getting messages: ${e.message}`)
+        // }
     }
 
-    // Decrypt and return
+    useEffect(() => {
 
-  }
+        // Figure out how to display decrypted messages below
+        fetch('/api/messages' + "?" + new URLSearchParams({recipient: loggedInUser}))
+            .then((res) => res.json())
+            .then((data) => decryptArray(data))
+            .then(decryptedData => {
+                setDisplayMessages(decryptedData.message)
+                console.log(data)
+            })
+
+        // This works to display encrypted messages
+        // fetch('/api/messages' + "?" + new URLSearchParams({recipient: loggedInUser}))
+        //     .then((res) => res.json())
+        //     .then((data) => {
+        //         setDisplayMessages(data.message)
+        //         console.log(data)
+        //     })
+
+    }, [loggedInUser])
 
   async function login() {
 
@@ -124,8 +201,9 @@ export default function Home() {
     const { blindnetSecret } = await Blindnet.deriveSecrets(userPwd)
     blindnet.connect(blindnetSecret)
         .then(() => {
-          setAppState(AppStates.SEND)
-          setLoggedInUser(userId)
+            setAppState(AppStates.SEND)
+            setToken(token)
+            setLoggedInUser(userId)
         }, async e => {console.log("Error")})
 
   }
@@ -152,11 +230,8 @@ export default function Home() {
         { appState != AppStates.LOGIN ? (
             <div>
 
-              <button onClick={() => setAppState(AppStates.SEND)}>Send</button>
-              <button onClick={() => {
-                setAppState(AppStates.RECEIVE)
-                receive()
-              }}>Receive</button>
+                <button onClick={() => setAppState(AppStates.SEND)}>Send</button>
+                <button onClick={() => setAppState(AppStates.RECEIVE)}>Receive</button>
 
             </div>
         ): null
@@ -176,13 +251,51 @@ export default function Home() {
         {/* Receive Block */}
         { appState === AppStates.RECEIVE ? (
           <div>
-            <p className="prompt">Your Messages:</p>
+              <p className="prompt">Your Messages:</p>
+              <ol>
+                  {displayMessages.map(message => (
+                      <li key={message._id}>{message.body.data}</li>
+                  ))}
+              </ol>
+
           </div>) : null
         }
       </div>
   )
 
 }
+
+function str2ab(str) {
+    var buf = new ArrayBuffer(str.length*2); // 2 bytes for each char
+    var bufView = new Uint16Array(buf);
+    for (var i=0, strLen=str.length; i < strLen; i++) {
+        bufView[i] = str.charCodeAt(i);
+    }
+    return buf;
+}
+
+function ab2str(buf) {
+    return String.fromCharCode.apply(null, new Uint16Array(buf));
+}
+
+function toBuffer(ab) {
+    const buf = Buffer.alloc(ab.byteLength);
+    const view = new Uint8Array(ab);
+    for (let i = 0; i < buf.length; ++i) {
+        buf[i] = view[i];
+    }
+    return buf;
+}
+
+function toArrayBuffer(buf) {
+    const ab = new ArrayBuffer(buf.length);
+    const view = new Uint8Array(ab);
+    for (let i = 0; i < buf.length; ++i) {
+        view[i] = buf[i];
+    }
+    return ab;
+}
+
 
 // export async function getServerSideProps(ctx) {
 //

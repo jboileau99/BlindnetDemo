@@ -26,17 +26,28 @@ async function getMessage(req, res) {
         const messages = db.collection('messages')
 
         // Messages
-        const result = await messages.findOne({
-            to: 'Justin'
+        const result = await messages.find({
+            to: req.query.recipient
         })
-        console.log(result)
+        // console.log(result)
+        // await result.forEach(console.dir);
+        // console.log(result.toArray())
+        // result.toArray().then(arr => {
+        //     console.log(arr)
+        // })
+
+        // return res.json({
+        //     message: result.toArray(),
+        //     success: true
+        // })
 
         return res.json({
-            message: JSON.parse(JSON.stringify(result)),
+            message: JSON.parse(JSON.stringify(await result.toArray())),
             success: true
         })
         // await result.forEach(console.dir)
     } catch (e) {
+        console.log(`Error: ${e.message}`)
         return res.json({
             message: new Error(e).message,
             success: false,
