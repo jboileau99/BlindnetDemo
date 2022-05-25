@@ -1,11 +1,6 @@
-import Head from 'next/head'
-import Link from 'next/link';
-import { useState, useEffect } from 'react';
-import { Blindnet } from '@blindnet/sdk-javascript'
-import { createTempUserToken, createUserToken } from '@blindnet/token-generator'
-import { error as blindnetError} from '@blindnet/sdk-javascript'
-// import clientPromise from "../lib/mongodb";
-const bson = require('bson')
+import {useEffect, useState} from 'react';
+import {Blindnet} from '@blindnet/sdk-javascript'
+import {createTempUserToken, createUserToken} from '@blindnet/token-generator'
 
 // Blindnet app info - Test App
 const appId = '3544e7cd-64a9-41b7-88dc-397bfdaeeaf3'
@@ -15,9 +10,9 @@ const groupId = 'test-group'
 
 // App states
 const AppStates = {
-  LOGIN: 0,
-  SEND: 1,
-  RECEIVE: 2,
+    LOGIN: 0,
+    SEND: 1,
+    RECEIVE: 2,
 }
 
 export default function Home() {
@@ -31,21 +26,18 @@ export default function Home() {
     const [loggedInUser, setLoggedInUser] = useState('')
     const [recipientId, setRecipientId] = useState('')
     const [token, setToken] = useState('')
+    const [getMessages, setGetMessages] = useState(false)
     const [displayMessages, setDisplayMessages] = useState([])
 
     // Data variables
-    const [dataMode, setDataMode] = useState(0)     // 0 == text, 1 == file
     const [data, setData] = useState('')
-    const [dataToDecrypt, setDataToDecrypt] = useState('')
 
     async function encryptData() {
 
         // Get token for sending to recipient
-        // console.log(`recipient: ${recipientId}, appId: ${appId}, appKey: ${appKey}`)
         const tempToken = await createTempUserToken(groupId, appId, appKey)
 
         // Get a blindnet instance
-        // console.log(`tempToken: ${tempToken}\n endpoint: ${endpoint}\ndata: ${data}`)
         const tempBlindnet = Blindnet.init(tempToken, endpoint)
 
         // Encrypt the text or file and return promise
@@ -55,16 +47,8 @@ export default function Home() {
     async function decryptData(encryptedData) {
 
         // Have to create/rename variables to have both dataToEncrypt (send) and dataToDecrypt (receive)
-        // const encryptedBytes = await encryptedData.arrayBuffer()
         const blindnet = Blindnet.init(token, endpoint)
-        // console.log(encryptedData)
-        // console.log(toArrayBuffer(encryptedData.data))
-        // console.log(`Type of encryptedData: ${typeof toArrayBuffer(encryptedData.data)}`)
         const { data, metadata } = await blindnet.decrypt(toArrayBuffer(encryptedData.data))
-
-        // Handle save or view case here
-        // saveAs(data, metadata.name)
-        console.log(`Decrypted data: ${data}`)
 
         return data
 
@@ -74,194 +58,295 @@ export default function Home() {
 
         // Encrypt message
         encryptData()
-          .then(async encryptedText => {
+            .then(async encryptedText => {
 
-            // Message structure
-            let message = {
-                to: recipientId,
-                from: loggedInUser,
-                body: toBuffer(encryptedText.encryptedData)
-            }
+                // Message structure
+                let message = {
+                    to: recipientId,
+                    from: loggedInUser,
+                    body: toBuffer(encryptedText.encryptedData)
+                }
 
-            // Send request for server to save the message
-            let response = await fetch('/api/messages', {
-              method: 'POST',
-              body: JSON.stringify(message)
-            })
-            let resp = await response.json()
+                // Send request for server to save the message
+                let response = await fetch('/api/messages', {
+                    method: 'POST',
+                    body: JSON.stringify(message)
+                })
+                let resp = await response.json()
 
-            if (resp.success) {
-              // Clear fields
-              setUserId('')
-              setData('')
-            } else {
-              // Do some kind of error display on the UI here
-              console.log(`Error sending message: ${resp.message}`)
-            }
+                if (resp.success) {
+                    // Clear fields
+                    setUserId('')
+                    setData('')
+                } else {
+                    // Do some kind of error display on the UI here
+                    console.log(`Error sending message: ${resp.message}`)
+                }
 
-          }, e => {})
+            }, e => {})
 
 
     }
 
-    async function decryptArray(encryptedData) {
-
-        // NEW
-        console.log(`Showing messages`)
-        encryptedData.message.forEach(message => {
-            console.log(message)
-            decryptData(message.body).then(decryptedBody => {
-                console.log(`Decrypted body: ${decryptedBody}`)
-                message.body = decryptedBody
-            })
-            console.log(message)
-        })
-
-        return encryptedData
-
-        // let decryptedMessages = encryptedData.map(async message => {
-        //         const decryptedMessage = { ...message }
-        //         // let decryptedBody = await decryptData(message.body)
-        //         // decryptedMessage.body = await decryptedBody
-        //         decryptData(message.body).then(decryptedBody => {
-        //             decryptedMessage.body = decryptedBody
-        //             console.log(decryptedMessage)
-        //         })
-        //         return decryptedMessage
-        //     })
-
-        // OLD
-        // try {
-        //
-        //     // Get array of encrypted messages for this user
-        //     // let response = await fetch('/api/messages' + "?" + new URLSearchParams({recipient: loggedInUser}))
-        //     // let messages = await response.json()
-        //     // let encryptedMessages = messages.message
-        //
-        //     // Decrypt each message
-        //     // let decryptedMessages = []
-        //     // decryptedMessages.forEach(async message => {
-        //     //     const decryptedMessage = { ...message }
-        //     //
-        //     //     decryptData(message.body).then(decryptedBody => {
-        //     //         decryptedMessage.body = decryptedBody
-        //     //         console.log(decryptedMessage)
-        //     //         console.log(decryptedBody)
-        //     //         decryptedMessages.push(decryptedMessage)
-        //     //     })
-        //     // })
-        //     // let decryptedMessages = encryptedMessages.map(async message => {
-        //     //     const decryptedMessage = { ...message }
-        //     //     // let decryptedBody = await decryptData(message.body)
-        //     //     // decryptedMessage.body = await decryptedBody
-        //     //     decryptData(message.body).then(decryptedBody => {
-        //     //         decryptedMessage.body = decryptedBody
-        //     //         console.log(decryptedMessage)
-        //     //     })
-        //     //     return decryptedMessage
-        //     // })
-        //     // console.log(decryptedMessages)
-        //     // console.log(`Decrypted messages: ${decryptedMessages}`)
-        //     // console.log(decryptedMessages)
-        //     // return decryptedMessages
-        //
-        // } catch (e) {
-        //   console.log(`Error getting messages: ${e.message}`)
-        // }
+    /**
+     * Get an array of decrypted message promises
+     * @param encryptedData
+     * @returns {*}
+     */
+    function decryptArray(encryptedData) {
+        return encryptedData.message.map(message => decryptData(message.body))
     }
 
     useEffect(() => {
 
-        // Figure out how to display decrypted messages below
-        fetch('/api/messages' + "?" + new URLSearchParams({recipient: loggedInUser}))
-            .then((res) => res.json())
-            .then((data) => decryptArray(data))
-            .then(decryptedData => {
-                setDisplayMessages(decryptedData.message)
-                console.log(data)
-            })
+        // Only update if user clicked receive button
+        if (getMessages) {
 
-        // This works to display encrypted messages
-        // fetch('/api/messages' + "?" + new URLSearchParams({recipient: loggedInUser}))
-        //     .then((res) => res.json())
-        //     .then((data) => {
-        //         setDisplayMessages(data.message)
-        //         console.log(data)
-        //     })
+            const fetchData = async () => {
 
-    }, [loggedInUser])
+                // Get array of messages and start decrypting
+                const response = await fetch('/api/messages' + "?" + new URLSearchParams({recipient: loggedInUser}))
+                const json = await response.json()
+                const decrypted = decryptArray(json)
 
-  async function login() {
+                // Rebuild the messages array once all data has been decrypted
+                Promise.all(decrypted).then(messages => {
+                    json.message.forEach((m, i) => {
+                        m.body = messages[i]
+                    })
+                    setDisplayMessages(json.message)
+                })
+            }
 
-    // Get token for user and init blindnet
-    const token = await createUserToken(userId, groupId, appId, appKey)
-    const blindnet = Blindnet.init(token, endpoint)
-
-    // Connect user to blindnet
-    const { blindnetSecret } = await Blindnet.deriveSecrets(userPwd)
-    blindnet.connect(blindnetSecret)
-        .then(() => {
-            setAppState(AppStates.SEND)
-            setToken(token)
-            setLoggedInUser(userId)
-        }, async e => {console.log("Error")})
-
-  }
-
-
-
-  return (
-      <div>
-        <h1>Welcome to Blindnet!</h1>
-
-        {/* Login/Create Account Block */}
-        { appState === AppStates.LOGIN ? (
-          <div>
-            <p className="prompt">Please login or create an account</p>
-            <p className="description">Username</p>
-            <input type="text" onInput={event => setUserId(event.target.value)}/>
-            <p className="description">Password</p>
-            <input type="password" onInput={event => setUserPwd(event.target.value)}/>
-            <button onClick={login}>Login</button>
-          </div>) : null
+            fetchData()
+            setGetMessages(false)
         }
 
-        {/* Send/Receive Selection Block */}
-        { appState != AppStates.LOGIN ? (
-            <div>
+    }, [getMessages])
 
-                <button onClick={() => setAppState(AppStates.SEND)}>Send</button>
-                <button onClick={() => setAppState(AppStates.RECEIVE)}>Receive</button>
+    async function login() {
 
-            </div>
-        ): null
-        }
+        // Get token for user and init blindnet
+        const token = await createUserToken(userId, groupId, appId, appKey)
+        const blindnet = Blindnet.init(token, endpoint)
 
-        {/* Send Block */}
-        { appState === AppStates.SEND ? (
-          <div>
-            <p className="prompt">Who would you like to send to?</p>
-            <input type="text" onInput={event => setRecipientId(event.target.value)}/>
-            <p className="prompt">Enter your message below</p>
-            <input type="text" onInput={event => setData(event.target.value)}/>
-            <button onClick={send}>Send</button>
-          </div>) : null
-        }
+        // Connect user to blindnet
+        const { blindnetSecret } = await Blindnet.deriveSecrets(userPwd)
+        blindnet.connect(blindnetSecret)
+            .then(() => {
+                setAppState(AppStates.SEND)
+                setToken(token)
+                setLoggedInUser(userId)
+            }, async e => {console.log("Error")})
 
-        {/* Receive Block */}
-        { appState === AppStates.RECEIVE ? (
-          <div>
-              <p className="prompt">Your Messages:</p>
-              <ol>
-                  {displayMessages.map(message => (
-                      <li key={message._id}>{message.body.data}</li>
-                  ))}
-              </ol>
+    }
 
-          </div>) : null
-        }
-      </div>
-  )
+
+
+    return (
+        <div className="container">
+            <h1 className="title">Welcome to Blindnet!</h1>
+
+            {/* Login/Create Account Block */}
+            { appState === AppStates.LOGIN ? (
+                <div>
+                    <p className="description">Please login or create an account</p>
+                    <p className="description">Username</p>
+                    <input className="textEntree" type="text" onInput={event => setUserId(event.target.value)}/>
+                    <p className="description">Password</p>
+                    <input className="textEntree" type="password" onInput={event => setUserPwd(event.target.value)}/>
+                    <a className="card" onClick={login}>Login</a>
+                </div>) : null
+            }
+
+            {/* Send/Receive Selection Block */}
+            { appState != AppStates.LOGIN ? (
+                <div>
+                    <button onClick={() => {setAppState(AppStates.SEND)}}>Send</button>
+                    <button onClick={() => {
+                        setAppState(AppStates.RECEIVE)
+                        setGetMessages(true)
+                    }}>Receive</button>
+
+                </div>
+            ): null
+            }
+
+            {/* Send Block */}
+            { appState === AppStates.SEND ? (
+                <div>
+                    <p className="prompt">Who would you like to send to?</p>
+                    <input type="text" onInput={event => setRecipientId(event.target.value)}/>
+                    <p className="prompt">Enter your message below</p>
+                    <input type="text" onInput={event => setData(event.target.value)}/>
+                    <button onClick={send}>Send</button>
+                </div>) : null
+            }
+
+            {/* Receive Block */}
+            { appState === AppStates.RECEIVE ? (
+                <div>
+                    <p className="prompt">Your Messages:</p>
+                    <ol>
+                        {
+                            displayMessages.map((message, i) => (
+                                <li key={i}>{`From: ${message.from} | Content: ${message.body}`}</li>
+                            ))}
+                    </ol>
+
+                </div>) : null
+            }
+
+            <style jsx>{`
+              .container {
+                min-height: 100vh;
+                padding: 0 0.5rem;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+              }
+
+              main {
+                padding: 5rem 0;
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+              }
+
+              footer {
+                width: 100%;
+                height: 100px;
+                border-top: 1px solid #eaeaea;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+              }
+
+              footer img {
+                margin-left: 0.5rem;
+              }
+
+              footer a {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+              }
+
+              a {
+                color: inherit;
+                text-decoration: none;
+              }
+
+              .title a {
+                color: #0070f3;
+                text-decoration: none;
+              }
+
+              .title a:hover,
+              .title a:focus,
+              .title a:active {
+                text-decoration: underline;
+              }
+
+              .title {
+                margin: 0;
+                line-height: 1.15;
+                font-size: 4rem;
+              }
+
+              .title,
+              .description {
+                text-align: center;
+              }
+
+              .description {
+                line-height: 1.5;
+                font-size: 1.5rem;
+              }
+              
+              .textEntree {
+                text-align: center;
+              }
+
+              code {
+                background: #fafafa;
+                border-radius: 5px;
+                padding: 0.75rem;
+                font-size: 1.1rem;
+                font-family: Menlo, Monaco, Lucida Console, Liberation Mono,
+                DejaVu Sans Mono, Bitstream Vera Sans Mono, Courier New, monospace;
+              }
+
+              .grid {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-wrap: wrap;
+
+                max-width: 800px;
+                margin-top: 3rem;
+              }
+
+              .card {
+                margin: 1rem;
+                flex-basis: 45%;
+                padding: 1.5rem;
+                text-align: left;
+                color: inherit;
+                text-decoration: none;
+                border: 1px solid #eaeaea;
+                border-radius: 10px;
+                transition: color 0.15s ease, border-color 0.15s ease;
+              }
+
+              .card:hover,
+              .card:focus,
+              .card:active {
+                color: #0070f3;
+                border-color: #0070f3;
+              }
+
+              .card h3 {
+                margin: 0 0 1rem 0;
+                font-size: 1.5rem;
+              }
+
+              .card p {
+                margin: 0;
+                font-size: 1.25rem;
+                line-height: 1.5;
+              }
+
+              .logo {
+                height: 1em;
+              }
+
+              @media (max-width: 600px) {
+                .grid {
+                  width: 100%;
+                  flex-direction: column;
+                }
+              }
+            `}</style>
+
+            <style jsx global>{`
+              html,
+              body {
+                padding: 0;
+                margin: 0;
+                font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto,
+                Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue,
+                sans-serif;
+              }
+
+              * {
+                box-sizing: border-box;
+              }
+            `}</style>
+        </div>
+    )
 
 }
 
