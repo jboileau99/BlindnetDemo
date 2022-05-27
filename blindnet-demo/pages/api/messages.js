@@ -1,6 +1,16 @@
+/**
+ * Server endpoints for storing and retrieving encrypted messages from MongoDB
+ */
+
 const { connectToDatabase } = require('../../lib/mongodb')
 const ObjectId = require('mongodb').ObjectId
 
+/**
+ * Setup GET and POST endpoints
+ * @param req
+ * @param res
+ * @returns {Promise<*>}
+ */
 export default async function handler(req, res) {
 
     switch(req.method) {
@@ -17,35 +27,31 @@ export default async function handler(req, res) {
 
 }
 
+/**
+ * GET endpoint handler
+ * @param req
+ * @param res
+ * @returns {Promise<*>}
+ */
 async function getMessage(req, res) {
 
     try {
 
         // Get references to client, db, and collection
-        let {db} = await connectToDatabase()
+        let { db } = await connectToDatabase()
         const messages = db.collection('messages')
 
-        // Messages
+        // Pull all the messages to the currently logged in user
         const result = await messages.find({
             to: req.query.recipient
         })
-        // console.log(result)
-        // await result.forEach(console.dir);
-        // console.log(result.toArray())
-        // result.toArray().then(arr => {
-        //     console.log(arr)
-        // })
 
-        // return res.json({
-        //     message: result.toArray(),
-        //     success: true
-        // })
-
+        // Return JSON response with all messages
         return res.json({
             message: JSON.parse(JSON.stringify(await result.toArray())),
             success: true
         })
-        // await result.forEach(console.dir)
+
     } catch (e) {
         console.log(`Error: ${e.message}`)
         return res.json({
@@ -56,10 +62,17 @@ async function getMessage(req, res) {
 
 }
 
+/**
+ * POST endpoint handler
+ * @param req
+ * @param res
+ * @returns {Promise<*>}
+ */
 async function sendMessage(req, res) {
 
     try {
 
+        // Get references to client, db, and collection
         let { db } = await connectToDatabase()
         await db.collection('messages').insertOne(JSON.parse(req.body))
 

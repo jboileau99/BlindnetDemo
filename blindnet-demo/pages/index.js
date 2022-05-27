@@ -1,3 +1,7 @@
+/**
+ * Simple Next.js app for connecting to Blindnet, sending and receiving encrypted messages.
+ */
+
 import {useEffect, useState} from 'react';
 import {Blindnet} from '@blindnet/sdk-javascript'
 import {createTempUserToken, createUserToken} from '@blindnet/token-generator'
@@ -17,7 +21,7 @@ const AppStates = {
 
 export default function Home() {
 
-    // Current state
+    // State to handle what components to show
     const [appState, setAppState] = useState(AppStates.LOGIN)
 
     // Sender/Recipient Variables
@@ -32,6 +36,10 @@ export default function Home() {
     // Data variables
     const [data, setData] = useState('')
 
+    /**
+     * Encrypt some data using the Blindnet SDK
+     * @returns {Promise<{dataId: string, encryptedData: ArrayBuffer}>}
+     */
     async function encryptData() {
 
         // Get token for sending to recipient
@@ -40,20 +48,39 @@ export default function Home() {
         // Get a blindnet instance
         const tempBlindnet = Blindnet.init(tempToken, endpoint)
 
-        // Encrypt the text or file and return promise
-        return tempBlindnet.capture(data).forUser('justin').encrypt()
+        // Encrypt the data and return promise
+        return tempBlindnet.capture(data).forUser(recipientId).encrypt()
     }
 
+    /**
+     * Decrypt some encrypted data using the Blindnet SDK
+     * @param encryptedData
+     * @returns {Promise<string|JsonObj|File|ArrayBuffer>}
+     */
     async function decryptData(encryptedData) {
 
-        // Have to create/rename variables to have both dataToEncrypt (send) and dataToDecrypt (receive)
+        // Get a blindnet instance using token of logged in user
         const blindnet = Blindnet.init(token, endpoint)
-        const { data, metadata } = await blindnet.decrypt(toArrayBuffer(encryptedData.data))
 
+        // Decrypt data and return promise
+        const { data, metadata } = await blindnet.decrypt(toArrayBuffer(encryptedData.data))
         return data
 
     }
 
+    /**
+     * Get an array of decrypted message promises
+     * @param encryptedData
+     * @returns {*}
+     */
+    function decryptArray(encryptedData) {
+        return encryptedData.message.map(message => decryptData(message.body))
+    }
+
+    /**
+     * Encrypt message for a certain user then call POST endpoint to store in DB
+     * @returns {Promise<void>}
+     */
     async function send() {
 
         // Encrypt message
@@ -76,7 +103,7 @@ export default function Home() {
 
                 if (resp.success) {
                     // Clear fields
-                    setUserId('')
+                    setRecipientId('')
                     setData('')
                 } else {
                     // Do some kind of error display on the UI here
@@ -89,14 +116,29 @@ export default function Home() {
     }
 
     /**
-     * Get an array of decrypted message promises
-     * @param encryptedData
-     * @returns {*}
+     * Connect a user to Blindnet
+     * @returns {Promise<void>}
      */
-    function decryptArray(encryptedData) {
-        return encryptedData.message.map(message => decryptData(message.body))
+    async function login() {
+
+        // Get token for user and init blindnet
+        const token = await createUserToken(userId, groupId, appId, appKey)
+        const blindnet = Blindnet.init(token, endpoint)
+
+        // Connect user to blindnet
+        const { blindnetSecret } = await Blindnet.deriveSecrets(userPwd)
+        blindnet.connect(blindnetSecret)
+            .then(() => {
+                setAppState(AppStates.SEND)
+                setToken(token)
+                setLoggedInUser(userId)
+            }, async e => {console.log("Invalid password")})
+
     }
 
+    /**
+     * Hook to asynchronously render received messages for the logged-in user
+     */
     useEffect(() => {
 
         // Only update if user clicked receive button
@@ -124,49 +166,35 @@ export default function Home() {
 
     }, [getMessages])
 
-    async function login() {
-
-        // Get token for user and init blindnet
-        const token = await createUserToken(userId, groupId, appId, appKey)
-        const blindnet = Blindnet.init(token, endpoint)
-
-        // Connect user to blindnet
-        const { blindnetSecret } = await Blindnet.deriveSecrets(userPwd)
-        blindnet.connect(blindnetSecret)
-            .then(() => {
-                setAppState(AppStates.SEND)
-                setToken(token)
-                setLoggedInUser(userId)
-            }, async e => {console.log("Error")})
-
-    }
-
-
-
     return (
         <div className="container">
             <h1 className="title">Welcome to Blindnet!</h1>
 
             {/* Login/Create Account Block */}
             { appState === AppStates.LOGIN ? (
-                <div>
-                    <p className="description">Please login or create an account</p>
-                    <p className="description">Username</p>
-                    <input className="textEntree" type="text" onInput={event => setUserId(event.target.value)}/>
-                    <p className="description">Password</p>
-                    <input className="textEntree" type="password" onInput={event => setUserPwd(event.target.value)}/>
-                    <a className="card" onClick={login}>Login</a>
+                <div className="grid">
+                    <p className="prompt">Please login or create an account</p><hr/>
+                    <p className="prompt">Username</p><hr/>
+                    <input className="textEntree" type="text" onInput={event => setUserId(event.target.value)}/><hr/>
+                    <p className="prompt">Password</p><hr/>
+                    <input className="textEntree" type="password" onInput={event => setUserPwd(event.target.value)}/><hr/>
+                    <div className="grid">
+                        <button className="simpleButton" onClick={login}>Login</button>
+                    </div>
                 </div>) : null
             }
 
             {/* Send/Receive Selection Block */}
             { appState != AppStates.LOGIN ? (
                 <div>
-                    <button onClick={() => {setAppState(AppStates.SEND)}}>Send</button>
-                    <button onClick={() => {
+                    <p className="prompt">Send a messages or check yours?</p>
+                    <div className="grid">
+                    <button className="simpleButton" onClick={() => {setAppState(AppStates.SEND)}}>Send</button>
+                    <button className="simpleButton" onClick={() => {
                         setAppState(AppStates.RECEIVE)
                         setGetMessages(true)
                     }}>Receive</button>
+                    </div>
 
                 </div>
             ): null
@@ -174,19 +202,19 @@ export default function Home() {
 
             {/* Send Block */}
             { appState === AppStates.SEND ? (
-                <div>
-                    <p className="prompt">Who would you like to send to?</p>
-                    <input type="text" onInput={event => setRecipientId(event.target.value)}/>
-                    <p className="prompt">Enter your message below</p>
-                    <input type="text" onInput={event => setData(event.target.value)}/>
-                    <button onClick={send}>Send</button>
+                <div className="grid">
+                    <p className="prompt">Who would you like to send to?</p><hr/>
+                    <input className="textEntree" type="text" value={recipientId} onInput={event => setRecipientId(event.target.value)}/><hr/>
+                    <p className="prompt">Enter your message below:</p><hr/>
+                    <input className="textEntree" type="text" value={data} onInput={event => setData(event.target.value)}/><hr/>
+                    <button className="simpleButton" onClick={send}>Send</button>
                 </div>) : null
             }
 
             {/* Receive Block */}
             { appState === AppStates.RECEIVE ? (
-                <div>
-                    <p className="prompt">Your Messages:</p>
+                <div className="grid">
+                    <p className="prompt">Your Messages:</p><hr/>
                     <ol>
                         {
                             displayMessages.map((message, i) => (
@@ -265,9 +293,28 @@ export default function Home() {
                 line-height: 1.5;
                 font-size: 1.5rem;
               }
-              
+
               .textEntree {
-                text-align: center;
+                margin: auto;
+                display: block;
+              }
+              
+              .simpleButton {
+                margin: auto;
+                display: block;
+                margin: 20px;
+              }
+              
+              .prompt {
+                font-size: 1.1rem;
+              }
+              
+              hr {
+                width: 100%;
+                flex-basis: 100%;
+                height: 0;
+                margin: 0;
+                border: none;
               }
 
               code {
@@ -286,17 +333,16 @@ export default function Home() {
                 flex-wrap: wrap;
 
                 max-width: 800px;
-                margin-top: 3rem;
+                margin-top: 0rem;
               }
 
               .card {
-                margin: 1rem;
                 flex-basis: 45%;
                 padding: 1.5rem;
-                text-align: left;
+                text-align: center;
                 color: inherit;
                 text-decoration: none;
-                border: 1px solid #eaeaea;
+                border: 2px solid #eaeaea;
                 border-radius: 10px;
                 transition: color 0.15s ease, border-color 0.15s ease;
               }
@@ -350,19 +396,11 @@ export default function Home() {
 
 }
 
-function str2ab(str) {
-    var buf = new ArrayBuffer(str.length*2); // 2 bytes for each char
-    var bufView = new Uint16Array(buf);
-    for (var i=0, strLen=str.length; i < strLen; i++) {
-        bufView[i] = str.charCodeAt(i);
-    }
-    return buf;
-}
-
-function ab2str(buf) {
-    return String.fromCharCode.apply(null, new Uint16Array(buf));
-}
-
+/**
+ * Helper function for converting ArrayBuffer to Buffer
+ * @param ab
+ * @returns {Buffer}
+ */
 function toBuffer(ab) {
     const buf = Buffer.alloc(ab.byteLength);
     const view = new Uint8Array(ab);
@@ -372,6 +410,11 @@ function toBuffer(ab) {
     return buf;
 }
 
+/**
+ * Helper function for converting Buffer to ArrayBuffer
+ * @param buf
+ * @returns {ArrayBuffer}
+ */
 function toArrayBuffer(buf) {
     const ab = new ArrayBuffer(buf.length);
     const view = new Uint8Array(ab);
@@ -380,220 +423,3 @@ function toArrayBuffer(buf) {
     }
     return ab;
 }
-
-
-// export async function getServerSideProps(ctx) {
-//
-// }
-
-// export default function Home() {
-//
-//   return (
-//     <div className="container">
-//       <Head>
-//         <title>Create Next App</title>
-//         <link rel="icon" href="/favicon.ico" />
-//       </Head>
-//
-//       <main>
-//         <h1 className="title">
-//           Learn <a href="https://www.blindnet.io/">Blindnet!</a>
-//         </h1>
-//
-//         <p className="description">
-//           Get started by hitting <code>Connect to blindnet</code>
-//         </p>
-//
-//         <div className="grid">
-//           <Link href="/connect">
-//             <a className="card">
-//               <h3>Register with blindnet</h3>
-//               <p>Do this to allow other users to send encrypted messages to you!</p>
-//             </a>
-//           </Link>
-//
-//           <Link href="/send-receive">
-//             <a href="https://nextjs.org/learn" className="card">
-//               <h3>Send/Receive Messages</h3>
-//               <p>Send an encrypted message or decrypt those sent to you</p>
-//             </a>
-//           </Link>
-//
-//           {/*<Link href="receive">*/}
-//           {/*  <a href="https://github.com/vercel/next.js/tree/master/examples" className="card">*/}
-//           {/*    <h3>Receive a message</h3>*/}
-//           {/*    <p>Decrypt and read any messages sent to you</p>*/}
-//           {/*  </a>*/}
-//           {/*</Link>*/}
-//
-//           <a
-//             href="https://vercel.com/import?filter=next.js&utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-//             className="card"
-//           >
-//             <h3>Logout</h3>
-//             <p>
-//               Disconnect from blindnet
-//             </p>
-//           </a>
-//         </div>
-//       </main>
-//
-//       <footer>
-//         <a
-//           href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-//           target="_blank"
-//           rel="noopener noreferrer"
-//         >
-//           Powered by Blindnet
-//           {/*<img src="/vercel.svg" alt="Vercel" className="logo" />*/}
-//         </a>
-//       </footer>
-//
-//       <style jsx>{`
-//         .container {
-//           min-height: 100vh;
-//           padding: 0 0.5rem;
-//           display: flex;
-//           flex-direction: column;
-//           justify-content: center;
-//           align-items: center;
-//         }
-//
-//         main {
-//           padding: 5rem 0;
-//           flex: 1;
-//           display: flex;
-//           flex-direction: column;
-//           justify-content: center;
-//           align-items: center;
-//         }
-//
-//         footer {
-//           width: 100%;
-//           height: 100px;
-//           border-top: 1px solid #eaeaea;
-//           display: flex;
-//           justify-content: center;
-//           align-items: center;
-//         }
-//
-//         footer img {
-//           margin-left: 0.5rem;
-//         }
-//
-//         footer a {
-//           display: flex;
-//           justify-content: center;
-//           align-items: center;
-//         }
-//
-//         a {
-//           color: inherit;
-//           text-decoration: none;
-//         }
-//
-//         .title a {
-//           color: #0070f3;
-//           text-decoration: none;
-//         }
-//
-//         .title a:hover,
-//         .title a:focus,
-//         .title a:active {
-//           text-decoration: underline;
-//         }
-//
-//         .title {
-//           margin: 0;
-//           line-height: 1.15;
-//           font-size: 4rem;
-//         }
-//
-//         .title,
-//         .description {
-//           text-align: center;
-//         }
-//
-//         .description {
-//           line-height: 1.5;
-//           font-size: 1.5rem;
-//         }
-//
-//         code {
-//           background: #fafafa;
-//           border-radius: 5px;
-//           padding: 0.75rem;
-//           font-size: 1.1rem;
-//           font-family: Menlo, Monaco, Lucida Console, Liberation Mono,
-//             DejaVu Sans Mono, Bitstream Vera Sans Mono, Courier New, monospace;
-//         }
-//
-//         .grid {
-//           display: flex;
-//           align-items: center;
-//           justify-content: center;
-//           flex-wrap: wrap;
-//
-//           max-width: 800px;
-//           margin-top: 3rem;
-//         }
-//
-//         .card {
-//           margin: 1rem;
-//           flex-basis: 45%;
-//           padding: 1.5rem;
-//           text-align: left;
-//           color: inherit;
-//           text-decoration: none;
-//           border: 1px solid #eaeaea;
-//           border-radius: 10px;
-//           transition: color 0.15s ease, border-color 0.15s ease;
-//         }
-//
-//         .card:hover,
-//         .card:focus,
-//         .card:active {
-//           color: #0070f3;
-//           border-color: #0070f3;
-//         }
-//
-//         .card h3 {
-//           margin: 0 0 1rem 0;
-//           font-size: 1.5rem;
-//         }
-//
-//         .card p {
-//           margin: 0;
-//           font-size: 1.25rem;
-//           line-height: 1.5;
-//         }
-//
-//         .logo {
-//           height: 1em;
-//         }
-//
-//         @media (max-width: 600px) {
-//           .grid {
-//             width: 100%;
-//             flex-direction: column;
-//           }
-//         }
-//       `}</style>
-//
-//       <style jsx global>{`
-//         html,
-//         body {
-//           padding: 0;
-//           margin: 0;
-//           font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto,
-//             Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue,
-//             sans-serif;
-//         }
-//
-//         * {
-//           box-sizing: border-box;
-//         }
-//       `}</style>
-//     </div>
-//   )
-// }

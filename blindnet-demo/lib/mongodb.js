@@ -1,8 +1,13 @@
+/**
+ * Functions for interacting with MONGODB
+ *
+ * Server must have the mongodb connection URL saved as environment variable 'MONGODB_URI'
+ */
+
 import { MongoClient } from 'mongodb';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB = 'BlindnetDemo';
-console.log(MONGODB_URI)
 
 // check the MongoDB URI
 if (!MONGODB_URI) {
